@@ -9,10 +9,16 @@ WATCHER="$SCRIPT_DIR/scripts/watch-ingest.sh"
 case "${1:-}" in
 
 register)
+    # sqlite3 설치 여부 확인
+    if ! command -v sqlite3 > /dev/null 2>&1; then
+        echo "ERROR: sqlite3 미설치. 'brew install sqlite3' 후 재시도하세요." >&2
+        exit 1
+    fi
+
     # launchd는 제한된 PATH에서 실행됨
     # 등록 시점에 실제 바이너리 위치를 찾아 plist EnvironmentVariables에 주입
     RESOLVED_DIRS=""
-    for bin in fswatch claude gemini; do
+    for bin in fswatch claude gemini sqlite3; do
         bin_path=$(command -v "$bin" 2>/dev/null || true)
         if [ -n "$bin_path" ]; then
             bin_dir=$(dirname "$bin_path")
@@ -22,7 +28,7 @@ register)
             esac
         fi
     done
-    INJECTED_PATH="${RESOLVED_DIRS:+${RESOLVED_DIRS}:}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    INJECTED_PATH="${RESOLVED_DIRS:+${RESOLVED_DIRS}:}$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
     # 이미 등록돼 있으면 먼저 해제 (idempotent)
     launchctl unload "$PLIST_PATH" 2>/dev/null || true

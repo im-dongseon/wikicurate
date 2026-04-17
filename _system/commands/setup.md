@@ -10,7 +10,26 @@
 - [ ] `wiki/index.md` 존재 확인. 없으면 빈 index 파일을 생성한다.
 - [ ] `wiki/log.md` 존재 확인. 없으면 빈 log 파일을 생성한다.
 
-## 2. graphify 설치 확인
+## 2. Python 의존성 확인
+
+아래 패키지가 설치되어 있는지 확인한다. 미설치 시 설치 후 계속 진행한다.
+
+| 패키지 | 용도 | 설치 명령 |
+|--------|------|----------|
+| `openpyxl` | XLSX 메타데이터 추출 | `pip3 install openpyxl` |
+| `python-pptx` | PPTX 텍스트 추출 | `pip3 install python-pptx` |
+| `gspread` | Google Sheets 메타데이터 추출 | `pip3 install gspread` |
+
+```bash
+pip3 show openpyxl python-pptx gspread
+```
+
+**gspread 인증 설정 (선택):** Google Sheets 파일(`.gsheet`)을 처리할 경우 아래 중 하나를 설정한다.
+- 서비스 계정: `~/.config/gspread/service_account.json` 배치
+- API 키: `GOOGLE_API_KEY` 환경변수 설정 (공개 시트 전용)
+- 미설정 시 인증 없이 URL만 기록하는 fallback으로 동작한다.
+
+## 3. graphify 설치 확인
 
 graphify가 설치되어 있는지 확인한다:
 ```bash

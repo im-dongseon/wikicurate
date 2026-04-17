@@ -2,14 +2,14 @@
 
 <div align="center">
 
-# WikiCurate v0.2.0
+# WikiCurate v0.2.3
 
 Autonomous LLM Wiki managed by AI agents.
 
 **AI 에이전트가 관리하는 자율형 LLM 위키 시스템**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.2.1-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.3-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -65,10 +65,12 @@ The system is operated via slash commands defined in the playbooks.
 | `/graphify` | Graph Build | Analyzes relationships between wiki pages to generate `graph.json`. |
 | `/setup` | Environment Setup | Creates initial folder structure and verifies required tool installations. |
 
-### Auto Ingest + Lint (v0.2.1)
+### Auto Ingest + Lint + Retry (v0.2.3)
 
 Automatically runs `/ingest` within 10 minutes whenever a file is added or modified in `raw/`.
 After a successful ingest batch, `/lint` runs automatically to detect and fix orphan pages, broken links, and contradictions.
+Failed files are recorded in a SQLite DB and automatically retried in the next cycle (up to 5 times).
+After 5 consecutive failures, the file is isolated to `raw/error/`.
 Registered as a macOS launchd agent during `deploy.sh`, and can also be managed independently.
 
 ```bash
@@ -84,6 +86,8 @@ Common log filters:
 ./scripts/watcher.sh log                        # Live streaming (Ctrl+C to exit)
 grep "완료" /tmp/wikicurate-watcher.log         # Ingest run summaries only
 grep "FAIL" /tmp/wikicurate-watcher.log         # Failed files only
+grep "RETRY" /tmp/wikicurate-watcher.log        # Retried files only
+grep "ISOLATED" /tmp/wikicurate-watcher.log     # Isolated files only
 tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
 ```
 
@@ -91,7 +95,7 @@ tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
 
 ## Universal Agent Compatibility
 
-`WikiCurate v0.2.0` is platform-agnostic.
+`WikiCurate v0.2.3` is platform-agnostic.
 - **Tool Mapping:** Designed to automatically recognize tools (READ, EDIT, BASH, etc.) in various agent environments.
 - **Universal Entry Points:** `CLAUDE.md` and `AGENTS.md` allow any agent to immediately understand the system's guidelines.
 
@@ -142,8 +146,10 @@ wikicurate/             # Development zone (this repository)
 
 vault/                  # Operations zone (deployment target, KMS root)
 ├── raw/                # Raw source data (PDF, Images, Web clips)
+│   └── error/          # Files isolated after max retries
 ├── wiki/               # Agent-managed knowledge (Index, Log, Sources...)
 ├── _system/            # System engine (deployed)
+├── _state/             # Runtime state (retry DB, auto-created)
 ├── .claude/            # Agent settings (Symlinks to commands)
 ├── CLAUDE.md           # Agent entry point 1
 └── AGENTS.md           # Agent entry point 2
