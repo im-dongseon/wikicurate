@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# WikiCurate v0.1.0 Deployment Script
+# WikiCurate v0.2.0 Deployment Script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -41,7 +41,7 @@ run() {
 
 deploy_to() {
   local TARGET="$1"
-  echo ">>> Deploying WikiCurate v0.1.0 to $TARGET..."
+  echo ">>> Deploying WikiCurate v0.2.0 to $TARGET..."
 
   # 1. _system 배포 (wiki-schema.md + commands/ 포함)
   echo "1. _system/ 동기화"
@@ -82,6 +82,10 @@ done
 if [ "$DRY_RUN" = true ]; then
   echo "[DRY-RUN] 완료. 실제 배포하려면 --dry-run 없이 실행하세요."
 else
+  echo "========================================"
+  echo "ingest-watcher 등록 중..."
+  "$SCRIPT_DIR/scripts/watcher.sh" register
+  echo ""
   echo "Done."
   echo ""
   echo "다음 단계: 각 배포 디렉토리에서 AI 에이전트를 열고 아래 커맨드를 실행하세요."

@@ -2,14 +2,14 @@
 
 <div align="center">
 
-# WikiCurate v0.1.0
+# WikiCurate v0.2.0
 
 Autonomous LLM Wiki managed by AI agents.
 
 **AI 에이전트가 관리하는 자율형 LLM 위키 시스템**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.1.0-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.0-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -65,11 +65,32 @@ The system is operated via slash commands defined in the playbooks.
 | `/graphify` | Graph Build | Analyzes relationships between wiki pages to generate `graph.json`. |
 | `/setup` | Environment Setup | Creates initial folder structure and verifies required tool installations. |
 
+### Auto Ingest (v0.2.0)
+
+Automatically runs `/ingest` within 10 minutes whenever a file is added or modified in `raw/`.
+Registered as a macOS launchd agent during `deploy.sh`, and can also be managed independently.
+
+```bash
+./scripts/watcher.sh register    # Register
+./scripts/watcher.sh unregister  # Unregister
+./scripts/watcher.sh status      # Check status
+./scripts/watcher.sh log         # Stream execution log
+```
+
+Common log filters:
+
+```bash
+./scripts/watcher.sh log                        # Live streaming (Ctrl+C to exit)
+grep "완료" /tmp/wikicurate-watcher.log         # Ingest run summaries only
+grep "FAIL" /tmp/wikicurate-watcher.log         # Failed files only
+tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
+```
+
 ---
 
 ## Universal Agent Compatibility
 
-`WikiCurate v0.1.0` is platform-agnostic.
+`WikiCurate v0.2.0` is platform-agnostic.
 - **Tool Mapping:** Designed to automatically recognize tools (READ, EDIT, BASH, etc.) in various agent environments.
 - **Universal Entry Points:** `CLAUDE.md` and `AGENTS.md` allow any agent to immediately understand the system's guidelines.
 
@@ -87,16 +108,17 @@ DEPLOY_PATHS=(
 ```
 
 ### Step 2. System Deployment
-Run the deployment script to inject system files and commands into your vault.
+Run the deployment script to inject system files, commands, and auto-register the ingest watcher.
 ```bash
 ./deploy.sh
+# → Deploys _system/ + auto-registers launchd ingest-watcher
 ```
 
 ### Step 3. Initialization & Operation
-Launch your agent in the vault directory and give the following commands:
+Launch your agent in the vault directory and give the following command:
 ```bash
 /setup
-/ingest
+# After this, dropping files into raw/ will trigger ingest automatically within 10 minutes.
 ```
 
 ---
@@ -104,10 +126,18 @@ Launch your agent in the vault directory and give the following commands:
 ## Directory Structure
 
 ```
-vault/
+wikicurate/             # Development zone (this repository)
+├── scripts/            # Automation scripts
+│   ├── watch-ingest.sh # fswatch-based auto ingest watcher
+│   └── watcher.sh      # launchd register/unregister/status
+├── _system/            # System engine (Schema, Commands)
+├── deploy.sh           # Deploy + auto-register watcher
+└── .env                # DEPLOY_PATHS configuration
+
+vault/                  # Operations zone (deployment target, KMS root)
 ├── raw/                # Raw source data (PDF, Images, Web clips)
 ├── wiki/               # Agent-managed knowledge (Index, Log, Sources...)
-├── _system/            # System engine (Schema, Commands)
+├── _system/            # System engine (deployed)
 ├── .claude/            # Agent settings (Symlinks to commands)
 ├── CLAUDE.md           # Agent entry point 1
 └── AGENTS.md           # Agent entry point 2

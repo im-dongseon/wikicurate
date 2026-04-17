@@ -2,14 +2,14 @@
 
 <div align="center">
 
-# WikiCurate v0.1.0
+# WikiCurate v0.2.0
 
 AI 에이전트가 관리하는 자율형 LLM 위키 시스템
 
 **Autonomous LLM Wiki managed by AI agents.**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.1.0-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.0-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -66,11 +66,32 @@ AI 에이전트가 관리하는 자율형 LLM 위키 시스템
 | `/graphify` | 그래프 빌드 | 위키 페이지 간의 관계를 분석하여 `graph.json` 생성 |
 | `/setup` | 환경 구축 | 초기 폴더 구조 생성 및 필요한 도구 설치 확인 |
 
+### 자동 ingest (v0.2.0)
+
+`raw/`에 파일을 추가하거나 수정하면 10분 이내에 자동으로 `/ingest`가 실행됩니다.
+[`deploy.sh`](deploy.sh) 실행 시 macOS launchd에 자동 등록되며, 별도 관리도 가능합니다.
+
+```bash
+./scripts/watcher.sh register    # 등록
+./scripts/watcher.sh unregister  # 해제
+./scripts/watcher.sh status      # 상태 확인
+./scripts/watcher.sh log         # 실행 로그 실시간 확인
+```
+
+로그에서 자주 쓰는 필터:
+
+```bash
+./scripts/watcher.sh log                        # 실시간 스트리밍 (Ctrl+C 종료)
+grep "완료" /tmp/wikicurate-watcher.log         # ingest 실행 요약만
+grep "FAIL" /tmp/wikicurate-watcher.log         # 실패 항목만
+tail -100 /tmp/wikicurate-watcher.log           # 최근 100줄
+```
+
 ---
 
 ## 범용 에이전트 호환성
 
-`WikiCurate v0.1.0`은 특정 플랫폼에 종속되지 않습니다.
+`WikiCurate v0.2.0`은 특정 플랫폼에 종속되지 않습니다.
 - **도구 매핑 (Tool Mapping):** 각 에이전트 환경의 도구(READ, EDIT, BASH 등)를 자동으로 인식하도록 설계되었습니다.
 - **범용 진입점:** `CLAUDE.md`, `AGENTS.md`를 통해 어떤 에이전트라도 즉시 시스템 지침을 이해할 수 있습니다.
 
@@ -88,16 +109,17 @@ DEPLOY_PATHS=(
 ```
 
 ### Step 2. 시스템 배포
-배포 스크립트를 실행하여 시스템 파일과 명령어를 볼트에 주입합니다.
+배포 스크립트를 실행하여 시스템 파일과 명령어를 볼트에 주입하고, ingest-watcher를 자동 등록합니다.
 ```bash
 ./deploy.sh
+# → _system/ 배포 + launchd ingest-watcher 자동 등록
 ```
 
 ### Step 3. 초기 설정 및 운영
 볼트 디렉토리에서 에이전트를 실행하고 다음 명령을 내립니다.
 ```bash
 /setup
-/ingest
+# 이후 raw/에 파일을 추가하면 10분 이내 자동 ingest 실행
 ```
 
 ---
@@ -105,10 +127,18 @@ DEPLOY_PATHS=(
 ## 디렉토리 구조
 
 ```
-vault/
+wikicurate/             # 개발 존 (이 저장소)
+├── scripts/            # 자동화 스크립트
+│   ├── watch-ingest.sh # fswatch 기반 자동 ingest 감시
+│   └── watcher.sh      # launchd 등록/해제/상태 관리
+├── _system/            # 시스템 엔진 (Schema, Commands)
+├── deploy.sh           # 배포 + watcher 자동 등록
+└── .env                # DEPLOY_PATHS 설정
+
+vault/                  # 운영 존 (배포 대상, KMS 루트)
 ├── raw/                # 원본 데이터 (PDF, 이미지, 웹 클립)
 ├── wiki/               # 에이전트 관리 지식 (Index, Log, Sources...)
-├── _system/            # 시스템 엔진 (Schema, Commands)
+├── _system/            # 시스템 엔진 (배포됨)
 ├── .claude/            # 에이전트 전용 설정 (Commands 심볼릭 링크)
 ├── CLAUDE.md           # 에이전트 진입점 1
 └── AGENTS.md           # 에이전트 진입점 2
