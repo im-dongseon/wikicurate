@@ -1,6 +1,6 @@
-# CLAUDE.md
+# WikiCurate Agent Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI agents working with this repository.
 
 ---
 
@@ -58,7 +58,7 @@ updated: YYYY-MM-DD
 
 ## 작업 흐름
 
-세 가지 작업은 슬래시 커맨드로 실행한다. 상세 절차는 `.claude/commands/` 참고.
+세 가지 작업은 슬래시 커맨드 또는 playbook 실행으로 처리한다. 상세 절차는 `_system/commands/` 참고.
 
 | 커맨드 | 용도 | 예시 |
 |---|---|---|
@@ -89,7 +89,7 @@ updated: YYYY-MM-DD
 
 `graphify-out/graph.json`에 wiki 페이지 간 관계를 사전 계산해 저장한다.
 
-- **빌드**: ingest·lint 완료 후 `/graphify --update` 절차에 따라 Claude가 직접 파일을 읽고 graph.json을 생성
+- **빌드**: ingest·lint 완료 후 `/graphify --update` 절차에 따라 에이전트가 직접 파일을 읽고 graph.json을 생성
 - **활용**: `/query`에서 1-hop 관련 페이지 탐색, `/lint`에서 고아 페이지·끊긴 링크 감지
 - **신선도**: `meta.built_at` 기준 24시간 초과 시 재빌드 제안
 - **폴백**: graph.json 없거나 오래됐으면 `wiki/index.md`로 대체

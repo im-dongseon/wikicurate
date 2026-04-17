@@ -107,6 +107,7 @@ tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
 Clone the repository and create a `.env` file in the root directory to set your Obsidian vault path.
 ```bash
 # .env file
+WIKICURATE_AGENT=codex
 DEPLOY_PATHS=(
   "/Users/yourname/Documents/my-vault"
 )
@@ -114,6 +115,7 @@ DEPLOY_PATHS=(
 
 ### Step 2. System Deployment
 Run the deployment script to inject system files, commands, and auto-register the ingest watcher.
+The default automatic runner is `codex`; override it with `WIKICURATE_AGENT` if needed.
 ```bash
 ./deploy.sh
 # → Deploys _system/ + auto-registers launchd ingest-watcher
@@ -165,7 +167,7 @@ vault/                  # Operations zone (deployment target, KMS root)
 ### Tools & Libraries
 - **[Obsidian](https://obsidian.md/):** Knowledge management tool for visualization and editing.
 - **[graphify](https://github.com/safishamsi/graphify):** Core command for analyzing relationships and visualizing the knowledge graph.
-- **AI Agents:** Compatible with universal AI agents like [Gemini CLI](https://github.com/google/gemini-cli) and [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code).
+- **AI Agents:** Compatible with universal AI agents like [Codex CLI](https://developers.openai.com/codex/cli), [Gemini CLI](https://github.com/google/gemini-cli), and [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code).
 
 ---
 

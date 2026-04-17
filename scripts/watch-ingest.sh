@@ -11,7 +11,7 @@ fi
 source "$SCRIPT_DIR/.env"
 
 # .env 로드 이후 선택적 환경변수 기본값 적용
-AGENT="${WIKICURATE_AGENT:-claude}"
+AGENT="${WIKICURATE_AGENT:-codex}"
 INTERVAL="${WIKICURATE_INTERVAL:-600}"
 
 # ── 사전 검증 ──────────────────────────────────────────────────────────
@@ -30,14 +30,17 @@ if ! command -v sqlite3 > /dev/null 2>&1; then
     exit 1
 fi
 
-# ── 에이전트 선택 (지정 에이전트 → claude → gemini 순 fallback) ────────
+# ── 에이전트 선택 (지정 에이전트 → codex → claude → gemini 순 fallback) ──
 select_agent_cmd() {
-    local candidates=("$1" claude gemini)
+    local candidates=("$1" codex claude gemini)
     local seen=()
     for agent in "${candidates[@]}"; do
         [[ ${#seen[@]} -gt 0 ]] && [[ " ${seen[*]} " == *" $agent "* ]] && continue
         seen+=("$agent")
         case "$agent" in
+            codex)
+                command -v codex > /dev/null 2>&1 && \
+                    echo "codex -a never exec -s workspace-write --skip-git-repo-check" && return 0 ;;
             claude)
                 command -v claude > /dev/null 2>&1 && \
                     echo "claude --dangerously-skip-permissions -p" && return 0 ;;
@@ -46,11 +49,36 @@ select_agent_cmd() {
                     echo "gemini --yolo -p" && return 0 ;;
         esac
     done
-    echo "ERROR: 사용 가능한 에이전트(claude/gemini)가 없습니다." >&2
+    echo "ERROR: 사용 가능한 에이전트(codex/claude/gemini)가 없습니다." >&2
     return 1
 }
 
 AGENT_CMD=$(select_agent_cmd "$AGENT") || exit 1
+
+build_agent_prompt() {
+    local action="$1"
+    local file="${2:-}"
+    local selected_agent="${AGENT_CMD%% *}"
+
+    case "$selected_agent" in
+        codex)
+            case "$action" in
+                ingest)
+                    printf "Read the playbook at _system/commands/ingest.md and execute it for this specific file only: %s." "$file"
+                    ;;
+                lint)
+                    printf "Read the playbook at _system/commands/lint.md and execute it for the current vault."
+                    ;;
+            esac
+            ;;
+        *)
+            case "$action" in
+                ingest) printf "/ingest %s" "$file" ;;
+                lint) printf "/lint" ;;
+            esac
+            ;;
+    esac
+}
 
 # ── DB 헬퍼 함수 ──────────────────────────────────────────────────────
 # DB_PATH는 루프 내에서 루트별로 설정됨
@@ -60,7 +88,7 @@ db_exec() {
     local sql="$1"
     local out err_file rc
     err_file=$(mktemp)
-    out=$(sqlite3 "$DB_PATH" "PRAGMA busy_timeout=5000; $sql" 2>"$err_file")
+    out=$(sqlite3 "$DB_PATH" -cmd ".timeout 5000" "$sql" 2>"$err_file")
     rc=$?
     if [ $rc -ne 0 ]; then
         echo "[DB ERROR] (rc=$rc) $(cat "$err_file")" >&2
@@ -97,7 +125,10 @@ db_delete() {
 
 db_upsert_failure() {
     local fp_esc="${1//\'/\'\'}"
-    local err_esc="${2//\'/\'\'}"
+    local err_flat
+    err_flat=$(printf '%s' "$2" | tr '\n' ' ' | tr '\r' ' ')
+    err_flat=$(printf '%s' "$err_flat" | sed 's/[[:space:]]\+/ /g')
+    local err_esc="${err_flat//\'/\'\'}"
     db_exec "INSERT INTO ingest_retries (filepath, retry_count, last_error, updated_at)
         VALUES ('${fp_esc}', 0, '${err_esc}', CURRENT_TIMESTAMP)
         ON CONFLICT(filepath) DO UPDATE SET
@@ -123,7 +154,9 @@ isolate_file() {
         dest="$error_dir/${base}.${ts}"
     fi
 
-    mv "$file" "$dest"
+    if ! mv "$file" "$dest"; then
+        return 1
+    fi
     db_delete "$file" || true
     echo "  [ISOLATED] raw/error/$(basename "$dest")"
 }
@@ -244,7 +277,8 @@ while true; do
                 fi
 
                 tmpout=$(mktemp)
-                if (cd "$root" && $AGENT_CMD "/ingest $file" > "$tmpout" 2>&1); then
+                ingest_prompt=$(build_agent_prompt ingest "$file")
+                if (cd "$root" && $AGENT_CMD "$ingest_prompt" > "$tmpout" 2>&1); then
                     ok=$((ok + 1))
                     db_delete "$file" || true
                 else
@@ -254,7 +288,10 @@ while true; do
 
                     new_rc=$(db_get_retry_count "$file" 2>/dev/null || true)
                     if [ -n "$new_rc" ] && [ "$new_rc" -ge 5 ] 2>/dev/null; then
-                        isolate_file "$file" "$root" || echo "  [ISOLATE ERROR] $(basename "$file")"
+                        isolate_file "$file" "$root" || {
+                            echo "  [ISOLATE ERROR] mv 실패 — DB에서 제거: $(basename "$file")"
+                            db_delete "$file" || true
+                        }
                     else
                         echo "  [FAIL] $(basename "$file")"
                         sed 's/^/    /' "$tmpout"
@@ -269,7 +306,8 @@ while true; do
             if [ "$ok" -gt 0 ]; then
                 echo "[$(date +%H:%M:%S)] lint 시작: $(basename "$root")"
                 lint_out=$(mktemp)
-                if (cd "$root" && $AGENT_CMD "/lint" > "$lint_out" 2>&1); then
+                lint_prompt=$(build_agent_prompt lint)
+                if (cd "$root" && $AGENT_CMD "$lint_prompt" > "$lint_out" 2>&1); then
                     echo "[$(date +%H:%M:%S)] lint 완료: $(basename "$root")"
                 else
                     echo "[$(date +%H:%M:%S)] lint 실패: $(basename "$root")"

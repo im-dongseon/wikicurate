@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## [0.2.4] - 2026-04-17
+
+### Added
+- **Codex CLI 지원:** `WIKICURATE_AGENT=codex` 설정 시 Codex CLI를 통한 자동 ingest/lint 실행 (Playbook 방식)
+- **에이전트 우선순위 조정:** `codex` → `claude` → `gemini` 순으로 사용 가능한 에이전트 자동 탐색 및 fallback
+- **에이전트별 프롬프트 최적화:** Codex의 경우 `/command` 대신 `_system/commands/`의 파일을 읽고 실행하도록 최적화된 프롬프트 전달
+- **watcher 상태 확인 개선:** `watcher.sh status` 실행 시 실제 동작 중인 PID 표시 및 등록 상태(중지/실행) 세분화
+
+### Fixed
+- **격리 재시도 루프 해결:** `isolate` 실패(예: 권한 문제로 `mv` 실패) 시 DB에서 해당 파일을 즉시 제거하여 무한 재시도 현상 방지
+
+### Changed
+- **범용 에이전트 가이드:** `_system/wiki-schema.md`를 특정 에이전트(Claude)에 종속되지 않는 `WikiCurate Agent Guide`로 개정
+
+---
+
 ## [0.2.3] - 2026-04-17
 
 ### Added

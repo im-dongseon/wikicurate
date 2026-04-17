@@ -108,6 +108,7 @@ tail -100 /tmp/wikicurate-watcher.log           # 최근 100줄
 레포지토리를 클론한 후 `.env` 파일을 생성하고 옵시디언 볼트 경로를 설정합니다.
 ```bash
 # .env 파일
+WIKICURATE_AGENT=codex
 DEPLOY_PATHS=(
   "/Users/yourname/Documents/my-vault"
 )
@@ -115,6 +116,7 @@ DEPLOY_PATHS=(
 
 ### Step 2. 시스템 배포
 배포 스크립트를 실행하여 시스템 파일과 명령어를 볼트에 주입하고, ingest-watcher를 자동 등록합니다.
+기본 자동 실행기는 `codex`이며, 필요하면 `.env` 또는 셸 환경에서 `WIKICURATE_AGENT`로 바꿀 수 있습니다.
 ```bash
 ./deploy.sh
 # → _system/ 배포 + launchd ingest-watcher 자동 등록
@@ -166,7 +168,7 @@ vault/                  # 운영 존 (배포 대상, KMS 루트)
 ### 사용된 도구 및 라이브러리
 - **[Obsidian](https://obsidian.md/):** 지식 베이스 시각화 및 편집을 위한 지식 관리 도구.
 - **[graphify](https://github.com/safishamsi/graphify):** 위키 페이지 간의 관계를 분석하여 지식 그래프를 시각화하는 핵심 명령.
-- **AI Agents:** [Gemini CLI](https://github.com/google/gemini-cli), [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code) 등 범용 AI 에이전트와 호환됩니다.
+- **AI Agents:** [Codex CLI](https://developers.openai.com/codex/cli), [Gemini CLI](https://github.com/google/gemini-cli), [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code) 등 범용 AI 에이전트와 호환됩니다.
 
 ---
 

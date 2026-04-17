@@ -18,7 +18,7 @@ register)
     # launchd는 제한된 PATH에서 실행됨
     # 등록 시점에 실제 바이너리 위치를 찾아 plist EnvironmentVariables에 주입
     RESOLVED_DIRS=""
-    for bin in fswatch claude gemini sqlite3; do
+    for bin in fswatch codex claude gemini sqlite3; do
         bin_path=$(command -v "$bin" 2>/dev/null || true)
         if [ -n "$bin_path" ]; then
             bin_dir=$(dirname "$bin_path")
@@ -80,10 +80,15 @@ unregister)
 
 status)
     if launchctl list 2>/dev/null | grep -q "$PLIST_LABEL"; then
-        echo "● 실행 중 ($PLIST_LABEL)"
+        pid=$(launchctl list "$PLIST_LABEL" 2>/dev/null | grep '"PID"' | awk -F'= ' '{print $2}' | tr -d ';')
+        if [ -n "$pid" ]; then
+            echo "● 실행 중 ($PLIST_LABEL, PID $pid)"
+        else
+            echo "○ 등록됨 (중지 상태)"
+        fi
         launchctl list "$PLIST_LABEL" 2>/dev/null || true
     else
-        echo "○ 미등록 또는 중지 상태"
+        echo "○ 미등록"
     fi
     ;;
 
