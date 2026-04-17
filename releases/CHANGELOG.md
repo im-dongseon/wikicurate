@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [0.2.1] - 2026-04-17
+
+### Added
+- **자동 lint:** ingest 배치 성공 후 자동으로 `/lint` 실행 — 고아 페이지·끊긴 링크·모순 클레임 즉시 감지·수정
+- **ingest 실패 원인 로그:** 실패한 파일의 에이전트 출력을 watcher.log에 기록
+- **lint 결과 로그:** lint 성공/실패 여부 및 실행 결과를 watcher.log에 기록
+- **로그 확인 명령:** `watcher.sh log` 서브커맨드 추가 (실시간 스트리밍)
+- **VERSION 파일:** `_system/VERSION`을 단일 버전 소스로 도입 — 배포 시 각 볼트의 `_system/VERSION`으로 자동 복사되어 배포 버전 확인 가능
+
+---
+
 ## [0.2.0] - 2026-04-17
 
 ### Added

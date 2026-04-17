@@ -9,7 +9,7 @@ Autonomous LLM Wiki managed by AI agents.
 **AI 에이전트가 관리하는 자율형 LLM 위키 시스템**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.2.0-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.1-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -65,9 +65,10 @@ The system is operated via slash commands defined in the playbooks.
 | `/graphify` | Graph Build | Analyzes relationships between wiki pages to generate `graph.json`. |
 | `/setup` | Environment Setup | Creates initial folder structure and verifies required tool installations. |
 
-### Auto Ingest (v0.2.0)
+### Auto Ingest + Lint (v0.2.1)
 
 Automatically runs `/ingest` within 10 minutes whenever a file is added or modified in `raw/`.
+After a successful ingest batch, `/lint` runs automatically to detect and fix orphan pages, broken links, and contradictions.
 Registered as a macOS launchd agent during `deploy.sh`, and can also be managed independently.
 
 ```bash
@@ -112,6 +113,11 @@ Run the deployment script to inject system files, commands, and auto-register th
 ```bash
 ./deploy.sh
 # → Deploys _system/ + auto-registers launchd ingest-watcher
+```
+
+Check the deployed version:
+```bash
+cat vault/_system/VERSION
 ```
 
 ### Step 3. Initialization & Operation

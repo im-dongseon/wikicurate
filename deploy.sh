@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 
-# WikiCurate v0.2.0 Deployment Script
+# WikiCurate Deployment Script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 버전 로드
+if [ ! -f "$SCRIPT_DIR/_system/VERSION" ]; then
+  echo "Error: _system/VERSION not found." >&2
+  exit 1
+fi
+VERSION="$(cat "$SCRIPT_DIR/_system/VERSION" | tr -d '[:space:]')"
 
 # 옵션 파싱
 DRY_RUN=false
@@ -41,7 +48,7 @@ run() {
 
 deploy_to() {
   local TARGET="$1"
-  echo ">>> Deploying WikiCurate v0.2.0 to $TARGET..."
+  echo ">>> Deploying WikiCurate v${VERSION} to $TARGET..."
 
   # 1. _system 배포 (wiki-schema.md + commands/ 포함)
   echo "1. _system/ 동기화"

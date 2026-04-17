@@ -144,6 +144,19 @@ while true; do
                 rm -f "$tmpout"
             done <<< "$changed"
             echo "[$(date +%H:%M:%S)] 완료 ($(basename "$root")): 성공 ${ok}개, 실패 ${fail}개"
+
+            # ingest 성공 건수 > 0일 때만 lint 실행
+            if [ "$ok" -gt 0 ]; then
+                echo "[$(date +%H:%M:%S)] lint 시작: $(basename "$root")"
+                lint_out=$(mktemp)
+                if (cd "$root" && $AGENT_CMD "/lint" > "$lint_out" 2>&1); then
+                    echo "[$(date +%H:%M:%S)] lint 완료: $(basename "$root")"
+                else
+                    echo "[$(date +%H:%M:%S)] lint 실패: $(basename "$root")"
+                fi
+                sed 's/^/    /' "$lint_out"
+                rm -f "$lint_out"
+            fi
         ) &
     done
 done

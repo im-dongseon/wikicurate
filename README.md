@@ -9,7 +9,7 @@ AI 에이전트가 관리하는 자율형 LLM 위키 시스템
 **Autonomous LLM Wiki managed by AI agents.**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.2.0-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.1-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -66,9 +66,10 @@ AI 에이전트가 관리하는 자율형 LLM 위키 시스템
 | `/graphify` | 그래프 빌드 | 위키 페이지 간의 관계를 분석하여 `graph.json` 생성 |
 | `/setup` | 환경 구축 | 초기 폴더 구조 생성 및 필요한 도구 설치 확인 |
 
-### 자동 ingest (v0.2.0)
+### 자동 ingest + lint (v0.2.1)
 
-`raw/`에 파일을 추가하거나 수정하면 10분 이내에 자동으로 `/ingest`가 실행됩니다.
+`raw/`에 파일을 추가하거나 수정하면 10분 이내에 자동으로 `/ingest`가 실행되고,
+ingest 성공 후 `/lint`가 자동으로 이어서 실행됩니다.
 [`deploy.sh`](deploy.sh) 실행 시 macOS launchd에 자동 등록되며, 별도 관리도 가능합니다.
 
 ```bash
@@ -113,6 +114,11 @@ DEPLOY_PATHS=(
 ```bash
 ./deploy.sh
 # → _system/ 배포 + launchd ingest-watcher 자동 등록
+```
+
+배포된 버전 확인:
+```bash
+cat vault/_system/VERSION
 ```
 
 ### Step 3. 초기 설정 및 운영
