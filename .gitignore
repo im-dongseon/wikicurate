@@ -1,0 +1,16 @@
+# Local environment variables
+.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Deployment artifacts (if any)
+_system/deploy_to_vault.sh.bak
+*.bak
+
+# Temporary files
+/tmp/
+
+# Superpowers intermediate artifacts
+docs/superpowers/

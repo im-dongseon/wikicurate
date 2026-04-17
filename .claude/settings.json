@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(graphify:*)",
+      "Bash(pip install graphifyy)",
+      "Bash(mkdir -p:*)",
+      "Bash(launchctl:*)",
+      "Bash(ln -sf:*)",
+      "Bash(rsync:*)",
+      "Bash(cp:*)",
+      "Bash(chmod +x:*)"
+    ]
+  }
+}
