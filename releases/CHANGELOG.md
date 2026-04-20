@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## [0.2.5] - 2026-04-20
+
+### Added
+- **DOC/XLS/PPT fallback 지원:** 구 Office 형식(Word 97-2003, Excel 97-2003, PowerPoint 97-2003) 발견 시 변환 안내 wiki 페이지 생성
+  - 직접 파싱 불가 — LibreOffice 변환 또는 수동 변환 후 재ingest 유도
+- **DOCX ingest 지원:** `.docx` 파일(Microsoft Word) ingest 정책 신규 도입
+  - 추출 대상: 문서 제목 + 헤딩 구조 + 각 섹션 첫 단락(200자 이내, 토큰 절약) + 표 개수
+  - 영문("Heading 1") 및 한국어("제목 1") 스타일 모두 대응
+  - `python-docx` 의존성 추가
+- **GDOC ingest 지원:** `.gdoc` 파일(Google Docs 스텁) ingest 정책 신규 도입
+  - 추출 대상: 문서 제목 + 헤딩(H1~H3) 구조 + 각 섹션 첫 문단(200자 이내, 토큰 절약)
+  - SA → URL fallback 2단계 구조
+- **GSLIDES ingest 지원:** `.gslides` 파일(Google Slides 스텁) ingest 정책 신규 도입
+  - 추출 대상: 프레젠테이션 제목 + 슬라이드별 제목 + 본문 텍스트(슬라이드당 500자 상한)
+  - SA → URL fallback 2단계 구조
+- **`google-api-python-client` 의존성 추가:** Docs/Slides API 접근용
+
+### Changed
+- **Google Drive 인증 방식 전환: ADC(gcloud) → SA(서비스 계정)**
+  - GSHEET/GDOC/GSLIDES 1단계 인증을 `google.auth.default()` → `service_account.Credentials.from_service_account_file()` 로 교체
+  - SA 키 파일 경로: `~/.config/wikicurate/sa_key.json`
+  - gcloud CLI 의존성 완전 제거 — SA 키 파일 하나로 Drive 접근 가능
+  - fallback 메시지에서 `gcloud auth application-default login` 참조 제거
+- **GSHEET 인증 단순화:** 3단계 fallback(서비스 계정 → API 키 → URL) → 2단계(SA → URL)로 교체
+- **Google 인증 스코프 통합:** 파일 형식별 스코프 → `drive.readonly` 하나로 통합 (Sheets/Docs/Slides 공통)
+- **`setup.md` 구조 개편 및 안정성 강화:**
+  - Google 파일 연동을 독립 섹션(Section 3)으로 분리, 섹션 번호 중복 버그 수정
+  - Section 1: `wiki/index.md`, `wiki/log.md` 기존 파일 덮어쓰기 방지 명시 (log.md는 append-only 보호)
+  - Section 3: gcloud 절차 → SA 키 파일 준비 절차로 교체, `google-api-python-client` 업그레이드 권장 추가
+  - Section 5: 자동 전체 재빌드 제거 → 필요 시 수동 실행 안내로 변경
+
+---
+
 ## [0.2.4] - 2026-04-17
 
 ### Added

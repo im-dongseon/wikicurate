@@ -179,6 +179,8 @@ for root in "${DEPLOY_PATHS[@]}"; do
 done
 
 # ── 루트별 fswatch 기동 및 DB 초기화 ──────────────────────────────────
+VERSION="$(cat "$SCRIPT_DIR/_system/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
+echo "[$(date +%H:%M:%S)] WikiCurate v${VERSION}"
 echo "[$(date +%H:%M:%S)] 에이전트: $AGENT_CMD"
 echo "[$(date +%H:%M:%S)] 실행 주기: ${INTERVAL}초"
 echo ""
@@ -268,7 +270,10 @@ while true; do
 
             ok=0; fail=0
             while IFS= read -r file; do
-                [ -f "$file" ] || continue
+                if [ ! -f "$file" ]; then
+                    echo "  [SKIP] $(basename "$file") (파일 없음 또는 디렉토리)"
+                    continue
+                fi
 
                 # 재시도 횟수 확인 → 로그 접두사 결정
                 rc_val=$(db_get_retry_count "$file" 2>/dev/null || true)

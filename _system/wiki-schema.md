@@ -198,73 +198,358 @@ for ws in wb.worksheets:
 - openpyxl 미설치 시: `pip3 install openpyxl`
 - `sources:` 프론트매터에 원본 `.xlsx` 경로를 기록한다: `sources: [raw/파일명.xlsx]`
 
-### GSHEET
+### DOCX
 
-`.gsheet` 파일은 Google Drive 스텁 JSON(`{"url": "...", "resource_id": "..."}`)이다. URL에서 Sheet ID를 추출한 뒤 아래 3단계 순서로 처리한다. **`raw/`에 중간 파일을 저장하지 않는다.**
+`python-docx`로 단락 구조를 추출해 wiki 페이지를 직접 작성한다. **`raw/`에 중간 파일을 저장하지 않는다.**
 
-**1단계 — 서비스 계정** (`~/.config/gspread/service_account.json` 존재 시):
+**추출 대상 (토큰 절약):** 문서 제목 + 헤딩 구조 + 각 섹션 첫 단락(200자 이내) + 표 개수
 
 ```python
-import gspread, json, os, re
+from docx import Document
+
+doc = Document("raw/파일명.docx")
+
+# 제목: core_properties 우선, 없으면 "Title" 스타일 단락
+title = doc.core_properties.title or ""
+sections = []
+got_first_para = False
+
+for para in doc.paragraphs:
+    style = para.style.name
+    text = para.text.strip()
+    if not text:
+        continue
+    # 영문("Heading 1") 및 한국어("제목 1") 스타일 모두 대응
+    is_heading = style.startswith("Heading") or style.startswith("제목")
+    is_normal = style in ("Normal", "본문")
+    if not title and style == "Title":
+        title = text
+        continue
+    if is_heading:
+        sections.append({"heading": text, "style": style, "first_para": None})
+        got_first_para = False
+    elif is_normal and not got_first_para and sections:
+        sections[-1]["first_para"] = text[:200]
+        got_first_para = True
+
+table_count = len(doc.tables)
+# → title, sections(heading + first_para), table_count를 wiki에 기록
+```
+
+- 커스텀 스타일 사용 시 헤딩이 감지되지 않을 수 있다. 표준 스타일(Heading 1~6 / 제목 1~6) 사용을 권장한다.
+- python-docx 미설치 시: `pip3 install python-docx`
+- `sources:` 프론트매터에 원본 `.docx` 경로를 기록한다: `sources: [raw/파일명.docx]`
+
+### Google 인증 공통 로직
+
+GSHEET / GDOC / GSLIDES 처리 시 아래 헬퍼를 사용한다. 각 섹션의 1단계 코드는 이 헬퍼를 호출하는 것으로 대체된다.
+
+```python
+import json, glob, os, pickle
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+
+def _find_wiki_root(start=None):
+    """CWD에서 위로 올라가며 wiki/index.md가 있는 디렉토리를 반환. 없으면 None."""
+    current = os.path.abspath(start or os.getcwd())
+    while True:
+        if os.path.exists(os.path.join(current, "wiki", "index.md")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+def _get_google_creds():
+    """
+    위키 루트의 .wikicurate에서 google_profile을 읽어 OAuth creds를 반환.
+    설정 없음 / 파일 없음 / 인증 실패 시 None 반환 → 호출부에서 fallback 처리.
+    """
+    CONFIG_DIR = os.path.expanduser("~/.config/wikicurate")
+    SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
+    wiki_root = _find_wiki_root()
+    if not wiki_root:
+        return None
+
+    cfg_path = os.path.join(wiki_root, ".wikicurate")
+    if not os.path.exists(cfg_path):
+        return None
+    try:
+        profile = json.load(open(cfg_path)).get("google_profile", "")
+    except Exception:
+        return None
+    if not profile:
+        return None
+
+    TOKEN_PATH = os.path.join(CONFIG_DIR, f"token_{profile}.pickle")
+    cred_files = glob.glob(os.path.join(CONFIG_DIR, f"client_secret_{profile}.json"))
+    if not cred_files:
+        return None
+
+    try:
+        creds = None
+        if os.path.exists(TOKEN_PATH):
+            with open(TOKEN_PATH, "rb") as f:
+                creds = pickle.load(f)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(cred_files[0], SCOPES)
+                creds = flow.run_local_server(port=0)
+            with open(TOKEN_PATH, "wb") as f:
+                pickle.dump(creds, f)
+        return creds
+    except Exception:
+        return None
+```
+
+- `google-auth-oauthlib` 미설치 시: `pip3 install google-auth-oauthlib`
+- 최초 실행 시 브라우저 인증 필요. 이후 `token_<profile>.pickle`이 자동 갱신됨.
+
+---
+
+### GSHEET
+
+`.gsheet` 파일은 Google Drive 스텁 JSON(`{"url": "...", "resource_id": "..."}`)이다. URL에서 Sheet ID를 추출한 뒤 아래 2단계 순서로 처리한다. **`raw/`에 중간 파일을 저장하지 않는다.**
+
+**1단계 — OAuth** (위키 루트에 `.wikicurate` 파일이 존재하는 경우):
+
+```python
+import gspread, json, re
 
 stub = json.load(open("raw/파일명.gsheet"))
 sheet_id = re.search(r'/spreadsheets/d/([^/]+)', stub["url"]).group(1)
 
-gc = gspread.service_account()
-sh = gc.open_by_key(sheet_id)
-for ws in sh.worksheets():
-    # 첫 5행을 단일 API 호출로 가져와 로컬에서 헤더 탐색
-    rows = ws.get_values("A1:Z5")
-    headers = []
-    header_row = None
-    for i, row in enumerate(rows, start=1):
-        non_empty = [v for v in row if str(v).strip()]
-        if non_empty:
-            headers = row
-            header_row = i
-            break
-    if not headers:
-        row_count = 0  # 빈 시트 또는 구조 불명확
-    else:
-        row_count = ws.row_count - header_row
-    # → 시트명, headers, row_count를 wiki에 기록
+try:
+    creds = _get_google_creds()
+    if creds is None:
+        raise Exception("fallback")
+
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(sheet_id)
+    for ws in sh.worksheets():
+        # 첫 5행을 단일 API 호출로 가져와 로컬에서 헤더 탐색
+        rows = ws.get_values("A1:Z5")
+        headers = []
+        header_row = None
+        for i, row in enumerate(rows, start=1):
+            non_empty = [v for v in row if str(v).strip()]
+            if non_empty:
+                headers = row
+                header_row = i
+                break
+        if not headers:
+            row_count = 0  # 빈 시트 또는 구조 불명확
+        else:
+            row_count = ws.row_count - header_row
+        # → 시트명, headers, row_count를 wiki에 기록
+except Exception:
+    # 2단계 fallback으로 강등
+    pass
 ```
 
-**2단계 — API 키 fallback** (`GOOGLE_API_KEY` 환경변수 존재 시, 공개 시트 전용):
+- gspread 미설치 시: `pip3 install gspread`
 
-```python
-import gspread, os
-
-gc = gspread.api_key(os.environ["GOOGLE_API_KEY"])
-sh = gc.open_by_key(sheet_id)
-# 이후 동일 (get_values("A1:Z5") → 헤더 탐색 → 행수 기록)
-```
-
-비공개 시트에서 `APIError (403)` 발생 시 3단계로 강등한다.
-
-**3단계 — 인증 없음 fallback** (서비스 계정·API 키 모두 없거나 403 발생 시):
+**2단계 — 인증 없음 fallback** (`.wikicurate` 없음 / 프로필 미설정 / 인증 실패 시):
 
 데이터 fetch 없이 URL과 파일명만 wiki 페이지에 기록하고, 본문에 아래 안내 블록을 삽입한다:
 
 ```markdown
 > **인증 미설정**: Google 인증이 구성되지 않아 시트 데이터를 가져오지 못했습니다.
-> 상세 내용을 수집하려면 `~/.config/gspread/service_account.json`을 설정하거나
-> `GOOGLE_API_KEY` 환경변수를 지정하세요.
+> 위키 루트에 `.wikicurate` 파일을 생성하고 `google_profile`을 설정하세요.
 > 원본: https://docs.google.com/spreadsheets/d/...
 ```
-
-- gspread 미설치 시: `pip3 install gspread`
 - `sources:` 프론트매터에 원본 `.gsheet` 경로를 기록한다: `sources: [raw/파일명.gsheet]`
+
+### GDOC
+
+`.gdoc` 파일은 Google Drive 스텁 JSON(`{"url": "...", "resource_id": "..."}`)이다. URL에서 Document ID를 추출한 뒤 아래 2단계 순서로 처리한다. **`raw/`에 중간 파일을 저장하지 않는다.**
+
+**추출 대상 (토큰 절약):** 문서 제목 + 헤딩(H1~H3) 구조 + 각 섹션 첫 문단(200자 이내)
+
+**1단계 — OAuth** (위키 루트에 `.wikicurate` 파일이 존재하는 경우):
+
+```python
+import json, re
+from googleapiclient.discovery import build
+
+stub = json.load(open("raw/파일명.gdoc"))
+doc_id = re.search(r'/document/d/([^/]+)', stub["url"]).group(1)
+
+try:
+    creds = _get_google_creds()
+    if creds is None:
+        raise Exception("fallback")
+
+    service = build("docs", "v1", credentials=creds)
+    doc = service.documents().get(documentId=doc_id).execute()
+
+    title = doc.get("title", "")
+    sections = []
+    got_first_para = False
+
+    for element in doc.get("body", {}).get("content", []):
+        para = element.get("paragraph")
+        if not para:
+            continue
+        style = para.get("paragraphStyle", {}).get("namedStyleType", "")
+        text = "".join(
+            e.get("textRun", {}).get("content", "")
+            for e in para.get("elements", [])
+            if "textRun" in e
+        ).strip()
+        if not text:
+            continue
+        if style in ("HEADING_1", "HEADING_2", "HEADING_3"):
+            sections.append({"heading": text, "level": style, "first_para": None})
+            got_first_para = False
+        elif style == "NORMAL_TEXT" and not got_first_para and sections:
+            sections[-1]["first_para"] = text[:200]
+            got_first_para = True
+    # → title, sections(heading + first_para)를 wiki에 기록
+except Exception:
+    # 2단계 fallback으로 강등
+    pass
+```
+
+- google-api-python-client 미설치 시: `pip3 install google-api-python-client`
+
+**2단계 — 인증 없음 fallback** (`.wikicurate` 없음 / 프로필 미설정 / 인증 실패 시):
+
+데이터 fetch 없이 URL과 파일명만 wiki 페이지에 기록하고, 본문에 아래 안내 블록을 삽입한다:
+
+```markdown
+> **인증 미설정**: Google 인증이 구성되지 않아 문서 데이터를 가져오지 못했습니다.
+> 위키 루트에 `.wikicurate` 파일을 생성하고 `google_profile`을 설정하세요.
+> 원본: https://docs.google.com/document/d/...
+```
+
+- google-api-python-client 미설치 시: `pip3 install google-api-python-client`
+- `sources:` 프론트매터에 원본 `.gdoc` 경로를 기록한다: `sources: [raw/파일명.gdoc]`
+
+### GSLIDES
+
+`.gslides` 파일은 Google Drive 스텁 JSON(`{"url": "...", "resource_id": "..."}`)이다. URL에서 Presentation ID를 추출한 뒤 아래 2단계 순서로 처리한다. **`raw/`에 중간 파일을 저장하지 않는다.**
+
+**추출 대상 (토큰 절약):** 프레젠테이션 제목 + 슬라이드별 제목 + 본문 텍스트(슬라이드당 500자 이내)
+
+**1단계 — OAuth** (위키 루트에 `.wikicurate` 파일이 존재하는 경우):
+
+```python
+import json, re
+from googleapiclient.discovery import build
+
+SLIDE_BODY_LIMIT = 500  # 슬라이드당 본문 텍스트 최대 글자 수
+
+stub = json.load(open("raw/파일명.gslides"))
+pres_id = re.search(r'/presentation/d/([^/]+)', stub["url"]).group(1)
+
+try:
+    creds = _get_google_creds()
+    if creds is None:
+        raise Exception("fallback")
+
+    service = build("slides", "v1", credentials=creds)
+    pres = service.presentations().get(presentationId=pres_id).execute()
+
+    title = pres.get("title", "")
+    slides = []
+    for slide in pres.get("slides", []):
+        slide_title = None
+        body_parts = []
+        for el in slide.get("pageElements", []):
+            shape = el.get("shape", {})
+            ph_type = shape.get("placeholder", {}).get("type", "")
+            text = "".join(
+                te.get("textRun", {}).get("content", "")
+                for te in shape.get("text", {}).get("textElements", [])
+                if "textRun" in te
+            ).strip()
+            if not text:
+                continue
+            if ph_type in ("TITLE", "CENTERED_TITLE"):
+                slide_title = text
+            else:
+                body_parts.append(text)
+        body = "\n".join(body_parts)[:SLIDE_BODY_LIMIT]
+        slides.append({"title": slide_title, "body": body})
+    # → title, slides(slide_title + body)를 wiki에 기록
+except Exception:
+    # 2단계 fallback으로 강등
+    pass
+```
+
+- google-api-python-client 미설치 시: `pip3 install google-api-python-client`
+
+**2단계 — 인증 없음 fallback** (`.wikicurate` 없음 / 프로필 미설정 / 인증 실패 시):
+
+데이터 fetch 없이 URL과 파일명만 wiki 페이지에 기록하고, 본문에 아래 안내 블록을 삽입한다:
+
+```markdown
+> **인증 미설정**: Google 인증이 구성되지 않아 프레젠테이션 데이터를 가져오지 못했습니다.
+> 위키 루트에 `.wikicurate` 파일을 생성하고 `google_profile`을 설정하세요.
+> 원본: https://docs.google.com/presentation/d/...
+```
+
+- google-api-python-client 미설치 시: `pip3 install google-api-python-client`
+- `sources:` 프론트매터에 원본 `.gslides` 경로를 기록한다: `sources: [raw/파일명.gslides]`
+
+### DOC
+
+`.doc` 파일(Word 97-2003)은 python-docx로 직접 처리할 수 없다. wiki 페이지에 변환 안내를 기록하고 종료한다.
+
+```markdown
+> **변환 필요**: `.doc` 파일은 직접 처리할 수 없습니다.
+> 아래 방법으로 `.docx`로 변환 후 다시 ingest하세요.
+> LibreOffice: `libreoffice --headless --convert-to docx "raw/파일명.doc" --outdir raw/`
+> 또는 Word에서 "다른 이름으로 저장 → .docx"로 변환하세요.
+```
+
+- `sources:` 프론트매터에 원본 `.doc` 경로를 기록한다: `sources: [raw/파일명.doc]`
+
+### XLS
+
+`.xls` 파일(Excel 97-2003)은 openpyxl로 직접 처리할 수 없다. wiki 페이지에 변환 안내를 기록하고 종료한다.
+
+```markdown
+> **변환 필요**: `.xls` 파일은 직접 처리할 수 없습니다.
+> 아래 방법으로 `.xlsx`로 변환 후 다시 ingest하세요.
+> LibreOffice: `libreoffice --headless --convert-to xlsx "raw/파일명.xls" --outdir raw/`
+> 또는 Excel에서 "다른 이름으로 저장 → .xlsx"로 변환하세요.
+```
+
+- `sources:` 프론트매터에 원본 `.xls` 경로를 기록한다: `sources: [raw/파일명.xls]`
+
+### PPT
+
+`.ppt` 파일(PowerPoint 97-2003)은 python-pptx로 직접 처리할 수 없다. wiki 페이지에 변환 안내를 기록하고 종료한다.
+
+```markdown
+> **변환 필요**: `.ppt` 파일은 직접 처리할 수 없습니다.
+> 아래 방법으로 `.pptx`로 변환 후 다시 ingest하세요.
+> LibreOffice: `libreoffice --headless --convert-to pptx "raw/파일명.ppt" --outdir raw/`
+> 또는 PowerPoint에서 "다른 이름으로 저장 → .pptx"로 변환하세요.
+```
+
+- `sources:` 프론트매터에 원본 `.ppt` 경로를 기록한다: `sources: [raw/파일명.ppt]`
 
 ### log.md 기록 규칙
 
 변환 중간 파일이 있더라도 **원본 바이너리 파일명**으로 기록한다.
 
 ```
+## [날짜] ingest | 파일명.docx
 ## [날짜] ingest | 파일명.pptx
 ## [날짜] ingest | 파일명.xlsx
 ## [날짜] ingest | 파일명.pdf
 ## [날짜] ingest | 파일명.gsheet
+## [날짜] ingest | 파일명.gdoc
+## [날짜] ingest | 파일명.gslides
+## [날짜] ingest | 파일명.doc
+## [날짜] ingest | 파일명.xls
+## [날짜] ingest | 파일명.ppt
 ```
 
 ---

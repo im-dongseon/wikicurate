@@ -2,14 +2,14 @@
 
 <div align="center">
 
-# WikiCurate v0.2.3
+# WikiCurate v0.2.5
 
 Autonomous LLM Wiki managed by AI agents.
 
 **AI 에이전트가 관리하는 자율형 LLM 위키 시스템**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.2.3-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.5-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -95,7 +95,7 @@ tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
 
 ## Universal Agent Compatibility
 
-`WikiCurate v0.2.3` is platform-agnostic.
+`WikiCurate v0.2.5` is platform-agnostic.
 - **Tool Mapping:** Designed to automatically recognize tools (READ, EDIT, BASH, etc.) in various agent environments.
 - **Universal Entry Points:** `CLAUDE.md` and `AGENTS.md` allow any agent to immediately understand the system's guidelines.
 
@@ -130,6 +130,8 @@ cat vault/_system/VERSION
 Launch your agent in the vault directory and give the following command:
 ```bash
 /setup
+# Installs Python dependencies and validates the environment.
+# If you need to process .gsheet/.gdoc/.gslides files, Google integration setup (optional) is also guided.
 # After this, dropping files into raw/ will trigger ingest automatically within 10 minutes.
 ```
 

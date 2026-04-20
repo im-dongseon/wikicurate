@@ -2,14 +2,14 @@
 
 <div align="center">
 
-# WikiCurate v0.2.3
+# WikiCurate v0.2.5
 
 AI 에이전트가 관리하는 자율형 LLM 위키 시스템
 
 **Autonomous LLM Wiki managed by AI agents.**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.2.3-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.5-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -96,7 +96,7 @@ tail -100 /tmp/wikicurate-watcher.log           # 최근 100줄
 
 ## 범용 에이전트 호환성
 
-`WikiCurate v0.2.3`은 특정 플랫폼에 종속되지 않습니다.
+`WikiCurate v0.2.5`은 특정 플랫폼에 종속되지 않습니다.
 - **도구 매핑 (Tool Mapping):** 각 에이전트 환경의 도구(READ, EDIT, BASH 등)를 자동으로 인식하도록 설계되었습니다.
 - **범용 진입점:** `CLAUDE.md`, `AGENTS.md`를 통해 어떤 에이전트라도 즉시 시스템 지침을 이해할 수 있습니다.
 
@@ -131,6 +131,8 @@ cat vault/_system/VERSION
 볼트 디렉토리에서 에이전트를 실행하고 다음 명령을 내립니다.
 ```bash
 /setup
+# Python 의존성 설치, 환경 검증 수행
+# .gsheet/.gdoc/.gslides 처리가 필요한 경우 Google 연동 설정(선택)도 안내됩니다.
 # 이후 raw/에 파일을 추가하면 10분 이내 자동 ingest 실행
 ```
 
