@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [0.2.6] - 2026-04-23
+
+### Added
+- **graphify 에이전트 통합 (always-on):** 4개 에이전트(Claude/Codex/Gemini/Copilot)에 graphify 지식 그래프를 always-on으로 통합
+  - graph 빌드 분리: `ingest.md` / `lint.md`에서 graph 빌드 제거 → `watch-ingest.sh`가 lint 성공 후 `graphify update .` 직접 실행
+  - `graphify.md`: 커스텀 빌더 → graphifyy CLI 래퍼로 교체
+  - `deploy.sh`: AGENTS.md/GEMINI.md symlink → 실파일 전환 (graphify always-on 섹션 포함)
+  - `deploy.sh` Step 7/8/9: `.codex/hooks.json`, `.gemini/settings.json`, `.github/copilot-instructions.md` 신규 생성
+  - `.claude/settings.json`: PreToolUse 훅 추가 (Glob/Grep 트리거 → GRAPH_REPORT.md 컨텍스트 주입)
+  - `query.md`: GRAPH_REPORT.md 우선 읽기, `meta.built_at` 신선도 체크 제거
+- **일일 Google 스텁 재스캔:** `.gdoc` / `.gsheet` / `.gslides` 파일의 내용 변경을 주기적으로 반영
+  - `scripts/daily-rescan.sh` 신규: Pass 1(Google 스텁 재ingest) → Pass 2(raw/ 미처리 파일 복구) → lint + graphify
+  - 실행 시간: 매일 07/10/13/16/19/21시 (launchd StartCalendarInterval, 6회/일)
+  - `watcher.sh`: daily-rescan job register/unregister/status/rescan-log 추가
+- **inbox 기반 ingest 플로우 도입:** 사용자 편의성과 자동화 안정성을 위해 `wiki-inbox/` 드롭존 방식 도입
+  - `raw/` 직접 조작 대신 `wiki-inbox/`에 파일을 던져 넣는 방식으로 개선
+  - 원자적 처리: 에이전트가 `wiki-inbox/`에서 `raw/`로 파일을 이동(mv)시킨 후 wiki 작성
+  - 반복 실패 격리: 지속적으로 실패하는 파일은 `wiki-inbox/error/`로 자동 격리
+  - 설정 체계 전환: `.env` → `wikicurate.yaml` (멀티 위키 관리 및 경로 오버라이드 지원)
+  - `deploy.sh --setup`: 인터랙티브 마법사 방식 초기 설정
+- **CSV/TSV ingest 지원:** `.csv` / `.tsv` 파일 ingest 정책 신규 도입
+  - 구분자 자동 감지(`csv.Sniffer`) + 확장자 기반 fallback
+  - 추출 대상: 구분자 종류 + 컬럼 헤더 + 총 행 수 (토큰 절약, XLSX 정책과 동일 원칙)
+  - 인코딩: UTF-8(BOM 포함) 우선, 실패 시 cp949 재시도
+
+---
+
 ## [0.2.5] - 2026-04-20
 
 ### Added

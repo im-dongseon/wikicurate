@@ -14,7 +14,9 @@ This file provides guidance to AI agents working with this repository.
 
 ```
 /
-├── raw/                # 원본 소스 (불변 — 읽기 전용)
+├── wiki-inbox/         # 신규 소스 투입 드롭존 (처리 후 raw/로 이동됨)
+│   └── error/          # 반복 실패 격리 (수동 처리 필요)
+├── raw/                # 원본 소스 아카이브 (불변 — 읽기 전용)
 │   └── assets/         # 로컬 이미지·첨부파일
 ├── wiki/               # LLM이 작성·관리하는 마크다운 파일
 │   ├── index.md        # 모든 위키 페이지 카탈로그
@@ -62,7 +64,7 @@ updated: YYYY-MM-DD
 
 | 커맨드 | 용도 | 예시 |
 |---|---|---|
-| `/ingest` | 새 소스를 wiki에 통합 | `/ingest raw/article.md` |
+| `/ingest` | 새 소스를 wiki에 통합 | `/ingest` (wiki-inbox/ 자동 스캔) |
 | `/query` | wiki 기반 질의·분석 | `/query 경쟁사 A와 B의 차이점은?` |
 | `/lint` | wiki 건강 점검 및 정리 | `/lint` |
 
@@ -87,12 +89,11 @@ updated: YYYY-MM-DD
 
 ## 지식 그래프 (graphify)
 
-`graphify-out/graph.json`에 wiki 페이지 간 관계를 사전 계산해 저장한다.
+`graphify-out/graph.json`과 `graphify-out/GRAPH_REPORT.md`에 wiki 지식 그래프를 사전 계산해 저장한다.
 
-- **빌드**: ingest·lint 완료 후 `/graphify --update` 절차에 따라 에이전트가 직접 파일을 읽고 graph.json을 생성
-- **활용**: `/query`에서 1-hop 관련 페이지 탐색, `/lint`에서 고아 페이지·끊긴 링크 감지
-- **신선도**: `meta.built_at` 기준 24시간 초과 시 재빌드 제안
-- **폴백**: graph.json 없거나 오래됐으면 `wiki/index.md`로 대체
+- **빌드**: ingest+lint 완료 후 `watch-ingest.sh`가 자동으로 `graphify update .`를 실행해 graph.json과 GRAPH_REPORT.md를 생성한다. 수동 실행: `/graphify`
+- **활용**: `/query`에서 GRAPH_REPORT.md + graph.json 기반 탐색, `/lint`에서 graph.json 기반 고아 페이지·끊긴 링크 감지
+- **폴백**: graph.json / GRAPH_REPORT.md 없으면 `wiki/index.md`로 대체
 
 ---
 
@@ -198,6 +199,50 @@ for ws in wb.worksheets:
 - openpyxl 미설치 시: `pip3 install openpyxl`
 - `sources:` 프론트매터에 원본 `.xlsx` 경로를 기록한다: `sources: [raw/파일명.xlsx]`
 
+### CSV / TSV
+
+구분자가 다를 뿐 구조가 동일하므로 통합 처리한다. 파이썬 내장 `csv` 모듈로 파싱하며 **`raw/`에 중간 파일을 저장하지 않는다.**
+
+**추출 대상 (토큰 절약):** 파일명 + 구분자 종류 + 컬럼 헤더 + 총 행 수
+
+```python
+import csv
+
+file_path = "raw/파일명.csv"  # .tsv도 동일 절차
+
+# 구분자 자동 감지
+with open(file_path, newline="", encoding="utf-8-sig") as f:
+    sample = f.read(4096)
+
+try:
+    dialect = csv.Sniffer().sniff(sample, delimiters=",\t|;")
+    delimiter = dialect.delimiter
+except csv.Error:
+    # 감지 실패 시 확장자 기반 기본값 적용
+    delimiter = "\t" if file_path.endswith(".tsv") else ","
+
+# 헤더 및 행 수 추출 (제너레이터로 메모리 절약)
+with open(file_path, newline="", encoding="utf-8-sig") as f:
+    reader = csv.reader(f, delimiter=delimiter)
+    headers = next(reader, [])
+    row_count = sum(1 for _ in reader)
+
+delimiter_name = "탭(TSV)" if delimiter == "\t" else f'"{delimiter}"'
+# → file_path, delimiter_name, headers, row_count를 wiki에 기록
+```
+
+- 인코딩: UTF-8(BOM 포함 대응) 우선. 실패 시 `cp949`로 재시도한다.
+  ```python
+  try:
+      # UTF-8 시도 (위 코드)
+      ...
+  except UnicodeDecodeError:
+      with open(file_path, newline="", encoding="cp949") as f:
+          ...
+  ```
+- 헤더 행이 없는 파일은 `headers: []`로 표기하고 row_count는 전체 행 수로 기록한다.
+- `sources:` 프론트매터에 원본 경로를 기록한다: `sources: [raw/파일명.csv]`
+
 ### DOCX
 
 `python-docx`로 단락 구조를 추출해 wiki 페이지를 직접 작성한다. **`raw/`에 중간 파일을 저장하지 않는다.**
@@ -239,6 +284,28 @@ table_count = len(doc.tables)
 - 커스텀 스타일 사용 시 헤딩이 감지되지 않을 수 있다. 표준 스타일(Heading 1~6 / 제목 1~6) 사용을 권장한다.
 - python-docx 미설치 시: `pip3 install python-docx`
 - `sources:` 프론트매터에 원본 `.docx` 경로를 기록한다: `sources: [raw/파일명.docx]`
+
+### .wikicurate 설정 파일
+
+위키 루트에 위치하는 JSON 설정 파일. 모든 키는 선택적이다.
+
+| 키 | 타입 | 설명 |
+|----|------|------|
+| `google_profile` | string | Google OAuth 프로필 이름. GSHEET/GDOC/GSLIDES 처리 시 사용. |
+| `inbox_path` | string | inbox 절대경로. 미설정 시 `wiki-inbox/` (위키 루트 기준 상대경로) 사용. |
+
+**예시** (SynapseModule/Docs — inbox가 상위 디렉토리에 위치하는 경우):
+```json
+{
+  "google_profile": "im.ds",
+  "inbox_path": "/Users/1004790/im.ds@10xtf.ai - Google Drive/공유 드라이브/SynapseModule/wiki-inbox"
+}
+```
+
+> `/ingest` 무인자 실행 시 이 파일을 읽어 inbox 경로를 결정한다.
+> watcher가 인자로 경로를 전달하는 경우에는 이 설정을 무시하고 전달된 경로를 우선 사용한다.
+
+---
 
 ### Google 인증 공통 로직
 
@@ -550,6 +617,8 @@ except Exception:
 ## [날짜] ingest | 파일명.doc
 ## [날짜] ingest | 파일명.xls
 ## [날짜] ingest | 파일명.ppt
+## [날짜] ingest | 파일명.csv
+## [날짜] ingest | 파일명.tsv
 ```
 
 ---

@@ -1,5 +1,6 @@
 # Local environment variables
 .env
+wikicurate.yaml
 
 # OS-specific files
 .DS_Store

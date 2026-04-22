@@ -2,14 +2,14 @@
 
 <div align="center">
 
-# WikiCurate v0.2.5
+# WikiCurate v0.2.6
 
 Autonomous LLM Wiki managed by AI agents.
 
 **AI 에이전트가 관리하는 자율형 LLM 위키 시스템**
 
 [![Obsidian](https://img.shields.io/badge/Obsidian-Vault-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Version](https://img.shields.io/badge/Version-0.2.5-blue)](releases/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.2.6-blue)](releases/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -62,40 +62,35 @@ The system is operated via slash commands defined in the playbooks.
 | `/ingest` | Source Ingest | Analyzes new files in `raw/`, creates wiki pages, and integrates with existing knowledge. |
 | `/query` | Intelligent Query | Explores the knowledge graph to generate context-based answers and save analyses. |
 | `/lint` | Health Check | Detects orphan pages, repairs broken links, and resolves contradictions. |
-| `/graphify` | Graph Build | Analyzes relationships between wiki pages to generate `graph.json`. |
+| `/graphify` | Graph Build | Generates `graph.json` + `GRAPH_REPORT.md` via the graphifyy CLI. |
 | `/setup` | Environment Setup | Creates initial folder structure and verifies required tool installations. |
 
-### Auto Ingest + Lint + Retry (v0.2.3)
+### Auto Ingest → Lint → Graphify (v0.2.6)
 
-Automatically runs `/ingest` within 10 minutes whenever a file is added or modified in `raw/`.
-After a successful ingest batch, `/lint` runs automatically to detect and fix orphan pages, broken links, and contradictions.
-Failed files are recorded in a SQLite DB and automatically retried in the next cycle (up to 5 times).
-After 5 consecutive failures, the file is isolated to `raw/error/`.
-Registered as a macOS launchd agent during `deploy.sh`, and can also be managed independently.
+Drop a file into `wiki-inbox/` and `/ingest` runs automatically within 10 minutes.
+After a successful ingest, `/lint` runs, followed by `graphify update .` to keep the knowledge graph current.
+Failed files are recorded in a SQLite DB and retried automatically (up to 5 times).
+After 5 consecutive failures, the file is isolated to `wiki-inbox/error/`.
+Registered as a macOS launchd agent during `deploy.sh`.
 
 ```bash
-./scripts/watcher.sh register    # Register
+./scripts/watcher.sh register    # Register (ingest-watcher + daily-rescan)
 ./scripts/watcher.sh unregister  # Unregister
 ./scripts/watcher.sh status      # Check status
-./scripts/watcher.sh log         # Stream execution log
+./scripts/watcher.sh log         # Stream ingest log
+./scripts/watcher.sh rescan-log  # Stream daily rescan log
 ```
 
-Common log filters:
+### Daily Google Stub Rescan (v0.2.6)
 
-```bash
-./scripts/watcher.sh log                        # Live streaming (Ctrl+C to exit)
-grep "완료" /tmp/wikicurate-watcher.log         # Ingest run summaries only
-grep "FAIL" /tmp/wikicurate-watcher.log         # Failed files only
-grep "RETRY" /tmp/wikicurate-watcher.log        # Retried files only
-grep "ISOLATED" /tmp/wikicurate-watcher.log     # Isolated files only
-tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
-```
+`.gdoc` / `.gsheet` / `.gslides` files are local stubs — fswatch cannot detect when their remote content changes.
+`daily-rescan.sh` runs automatically at 07/10/13/16/19/21h every day to re-ingest stubs and recover any unprocessed files left in `raw/`.
 
 ---
 
 ## Universal Agent Compatibility
 
-`WikiCurate v0.2.5` is platform-agnostic.
+`WikiCurate v0.2.6` is platform-agnostic.
 - **Tool Mapping:** Designed to automatically recognize tools (READ, EDIT, BASH, etc.) in various agent environments.
 - **Universal Entry Points:** `CLAUDE.md` and `AGENTS.md` allow any agent to immediately understand the system's guidelines.
 
@@ -104,21 +99,26 @@ tail -100 /tmp/wikicurate-watcher.log           # Last 100 lines
 ## Quick Start
 
 ### Step 1. Environment Setup
-Clone the repository and create a `.env` file in the root directory to set your Obsidian vault path.
+Clone the repository and run the deployment script — an interactive wizard will guide you through vault path and agent configuration.
 ```bash
-# .env file
-WIKICURATE_AGENT=codex
-DEPLOY_PATHS=(
-  "/Users/yourname/Documents/my-vault"
-)
+./deploy.sh --setup
+# Runs the wikicurate.yaml setup wizard
+```
+
+Or edit directly:
+```yaml
+# wikicurate.yaml
+wikis:
+  - deploy: "/Users/yourname/Documents/my-vault"
+agent: codex
+interval: 600
 ```
 
 ### Step 2. System Deployment
-Run the deployment script to inject system files, commands, and auto-register the ingest watcher.
-The default automatic runner is `codex`; override it with `WIKICURATE_AGENT` if needed.
+Run the deployment script to inject system files and auto-register both the ingest-watcher and daily-rescan jobs.
 ```bash
 ./deploy.sh
-# → Deploys _system/ + auto-registers launchd ingest-watcher
+# → Deploys _system/ + auto-registers launchd ingest-watcher + daily-rescan
 ```
 
 Check the deployed version:
@@ -141,22 +141,26 @@ Launch your agent in the vault directory and give the following command:
 
 ```
 wikicurate/             # Development zone (this repository)
-├── scripts/            # Automation scripts
+├── scripts/
 │   ├── watch-ingest.sh # fswatch-based auto ingest watcher
+│   ├── daily-rescan.sh # Daily Google stub rescan (07~21h, 6x/day)
 │   └── watcher.sh      # launchd register/unregister/status
 ├── _system/            # System engine (Schema, Commands)
 ├── deploy.sh           # Deploy + auto-register watcher
-└── .env                # DEPLOY_PATHS configuration
+└── wikicurate.yaml     # Vault paths and agent configuration
 
 vault/                  # Operations zone (deployment target, KMS root)
-├── raw/                # Raw source data (PDF, Images, Web clips)
-│   └── error/          # Files isolated after max retries
+├── wiki-inbox/         # File drop zone (moved to raw/ after processing)
+│   └── error/          # Files isolated after repeated failures
+├── raw/                # Immutable source archive
 ├── wiki/               # Agent-managed knowledge (Index, Log, Sources...)
+├── graphify-out/       # Knowledge graph artifacts (auto-generated)
 ├── _system/            # System engine (deployed)
 ├── _state/             # Runtime state (retry DB, auto-created)
-├── .claude/            # Agent settings (Symlinks to commands)
-├── CLAUDE.md           # Agent entry point 1
-└── AGENTS.md           # Agent entry point 2
+├── .claude/            # Claude Code settings (PreToolUse hook included)
+├── CLAUDE.md           # Agent entry point (Claude)
+├── AGENTS.md           # Agent entry point (Codex)
+└── GEMINI.md           # Agent entry point (Gemini)
 ```
 
 ---

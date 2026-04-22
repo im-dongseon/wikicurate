@@ -1,0 +1,11 @@
+# WikiCurate 설정 파일
+# 이 파일을 wikicurate.yaml로 복사한 뒤 경로를 수정하세요.
+# 또는 ./deploy.sh 를 실행하면 인터랙티브 마법사가 안내합니다.
+
+wikis:
+  - deploy: "/path/to/your/wiki"
+  # wiki-inbox 경로를 deploy 외부로 지정하려면 아래 주석 해제:
+  # wiki-inbox: "/path/to/your/wiki-inbox"
+
+agent: codex       # codex | claude | gemini  (기본값: codex)
+interval: 600      # watcher 감시 주기 초  (기본값: 600)
