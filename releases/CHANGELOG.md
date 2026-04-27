@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [0.2.7] - 2026-04-24
+
+### Added
+- **Linux 호환성 지원:** macOS 전용 스크립트를 Linux(Ubuntu/Debian)에서도 동작하도록 수정
+  - `watcher.sh`: launchd/plist → systemd user service + timer 분기 (`uname -s` 기반 OS 감지)
+  - `watch-ingest.sh`: fswatch → inotifywait 분기, `md5` → `md5_short()` 함수화 (md5sum 호환)
+  - `deploy.sh` / `daily-rescan.sh`: brew 설치 안내를 OS별 패키지 매니저로 조건부 출력
+  - Linux 서버 환경에서 로그아웃 후에도 watcher 유지: `loginctl enable-linger` 안내 추가
+- **`install.sh` 신규:** 의존성 설치 → 경로 설정 → 배포를 한 번에 처리하는 설치 스크립트
+  - macOS: Homebrew, Linux: apt + snap/GitHub 바이너리(yq) 자동 선택
+  - AI 에이전트(claude/codex/gemini) 미설치 시 경고 및 대기
+  - `wikicurate.yaml` 이미 있으면 setup 건너뜀 (재실행 안전)
+
+---
+
 ## [0.2.6] - 2026-04-23
 
 ### Added

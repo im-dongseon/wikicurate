@@ -3,6 +3,16 @@
 # WikiCurate Deployment Script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OS=$(uname -s)
+
+pkg_install_hint() {
+    local pkg="$1"
+    if [ "$OS" = "Darwin" ]; then
+        echo "brew install $pkg"
+    else
+        echo "sudo apt-get install -y $pkg"
+    fi
+}
 
 # 버전 로드
 if [ ! -f "$SCRIPT_DIR/_system/VERSION" ]; then
@@ -13,7 +23,7 @@ VERSION="$(cat "$SCRIPT_DIR/_system/VERSION" | tr -d '[:space:]')"
 
 # yq 의존성 체크
 if ! command -v yq > /dev/null 2>&1; then
-  echo "ERROR: yq 미설치. 'brew install yq' 후 재시도하세요." >&2
+  echo "ERROR: yq 미설치. '$(pkg_install_hint yq)' 후 재시도하세요." >&2
   exit 1
 fi
 

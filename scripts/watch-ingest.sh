@@ -2,6 +2,24 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OS=$(uname -s)
+
+pkg_install_hint() {
+    local pkg="$1"
+    if [ "$OS" = "Darwin" ]; then
+        echo "brew install $pkg"
+    else
+        echo "sudo apt-get install -y $pkg"
+    fi
+}
+
+md5_short() {
+    if [ "$OS" = "Darwin" ]; then
+        echo "$1" | md5 | cut -c1-8
+    else
+        echo "$1" | md5sum | cut -c1-8
+    fi
+}
 
 # ── 사전 검증 ──────────────────────────────────────────────────────────
 # wikicurate.yaml 존재 확인
@@ -13,17 +31,24 @@ fi
 
 # yq 체크는 사용 전에 수행 (DEPLOY_PATHS 로딩이 yq를 호출하므로)
 if ! command -v yq > /dev/null 2>&1; then
-    echo "ERROR: yq 미설치. 'brew install yq' 후 재시도하세요." >&2
+    echo "ERROR: yq 미설치. '$(pkg_install_hint yq)' 후 재시도하세요." >&2
     exit 1
 fi
 
-if ! command -v fswatch > /dev/null 2>&1; then
-    echo "ERROR: fswatch 미설치. 'brew install fswatch' 후 재시도하세요." >&2
-    exit 1
+if [ "$OS" = "Darwin" ]; then
+    if ! command -v fswatch > /dev/null 2>&1; then
+        echo "ERROR: fswatch 미설치. '$(pkg_install_hint fswatch)' 후 재시도하세요." >&2
+        exit 1
+    fi
+else
+    if ! command -v inotifywait > /dev/null 2>&1; then
+        echo "ERROR: inotifywait 미설치. '$(pkg_install_hint inotify-tools)' 후 재시도하세요." >&2
+        exit 1
+    fi
 fi
 
 if ! command -v sqlite3 > /dev/null 2>&1; then
-    echo "ERROR: sqlite3 미설치. 'brew install sqlite3' 후 재시도하세요." >&2
+    echo "ERROR: sqlite3 미설치. '$(pkg_install_hint sqlite3)' 후 재시도하세요." >&2
     exit 1
 fi
 
@@ -182,7 +207,7 @@ isolate_file() {
 cleanup() {
     echo "[$(date +%H:%M:%S)] 종료 — 임시 파일 정리"
     for root in "${DEPLOY_PATHS[@]}"; do
-        h=$(echo "$root" | md5 | cut -c1-8)
+        h=$(md5_short "$root")
         rm -f "/tmp/wikicurate-${h}.queue" "/tmp/wikicurate-${h}.lock" "/tmp/wikicurate-${h}.inbox"
     done
     kill 0 2>/dev/null || true
@@ -191,7 +216,7 @@ trap cleanup EXIT INT TERM
 
 # ── 시작 시 스테일 lock 파일 정리 (이전 SIGKILL/비정상 종료 대비) ──────
 for root in "${DEPLOY_PATHS[@]}"; do
-    h=$(echo "$root" | md5 | cut -c1-8)
+    h=$(md5_short "$root")
     rm -f "/tmp/wikicurate-${h}.lock"
 done
 
@@ -211,21 +236,29 @@ for root in "${DEPLOY_PATHS[@]}"; do
     mkdir -p "$inbox_dir"
     mkdir -p "$inbox_dir/error"
 
-    h=$(echo "$root" | md5 | cut -c1-8)
+    h=$(md5_short "$root")
     touch "/tmp/wikicurate-${h}.queue"
     # inbox_dir 경로를 저장 (타이머 루프에서 재참조)
     echo "$inbox_dir" > "/tmp/wikicurate-${h}.inbox"
 
-    fswatch \
-        --event Created \
-        --event Updated \
-        --event MovedTo \
-        --latency 1 \
-        --exclude '.*\.DS_Store$' \
-        --exclude '.*\.swp$' \
-        --exclude '.*~$' \
-        --exclude '.*/error/.*' \
-        "$inbox_dir" >> "/tmp/wikicurate-${h}.queue" &
+    if [ "$OS" = "Darwin" ]; then
+        fswatch \
+            --event Created \
+            --event Updated \
+            --event MovedTo \
+            --latency 1 \
+            --exclude '.*\.DS_Store$' \
+            --exclude '.*\.swp$' \
+            --exclude '.*~$' \
+            --exclude '.*/error/.*' \
+            "$inbox_dir" >> "/tmp/wikicurate-${h}.queue" &
+    else
+        inotifywait -m -r \
+            -e create -e moved_to \
+            --exclude '(\.DS_Store|\.swp|~$|/error/)' \
+            --format '%w%f' \
+            "$inbox_dir" >> "/tmp/wikicurate-${h}.queue" &
+    fi
 
     DB_PATH="$root/_state/data/wikicurate-retries.db"
     db_init
@@ -253,7 +286,7 @@ fi
 # sleep 이후 다시 한 번 stale lock 정리
 # (sleep 도중 이전 인스턴스의 async subshell이 lock을 재생성할 수 있음)
 for root in "${DEPLOY_PATHS[@]}"; do
-    h=$(echo "$root" | md5 | cut -c1-8)
+    h=$(md5_short "$root")
     rm -f "/tmp/wikicurate-${h}.lock"
 done
 
@@ -267,7 +300,7 @@ while true; do
     fi
 
     for root in "${DEPLOY_PATHS[@]}"; do
-        h=$(echo "$root" | md5 | cut -c1-8)
+        h=$(md5_short "$root")
         queue="/tmp/wikicurate-${h}.queue"
         lock="/tmp/wikicurate-${h}.lock"
         inbox_file="/tmp/wikicurate-${h}.inbox"
